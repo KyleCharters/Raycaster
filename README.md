@@ -1,4 +1,4 @@
 # Raycaster
-Simple Game for Summative Computer Science Assessment
+Pseudo-3D fps for a Grade 10 Computer Science Assessment
 
-This program requires both Pygame and EasyGUI to be installed in your python path.
+Dependencies: Pygame and EasyGUI.
