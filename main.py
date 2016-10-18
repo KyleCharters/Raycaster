@@ -57,12 +57,11 @@ def start():
         #Find current update data
         events = pygame.event.get()
         keys = pygame.key.get_pressed()
-        mousepos = pygame.mouse.get_pos()
         delta = min(fpsclock.get_time() / 1000, 0.5)
         
         #Update the current state as well as the debugger
-        statemanager.update(window, delta, events, keys, mousepos)
-        debugger.update(window, delta, events, keys, mousepos, fpsclock)
+        statemanager.update(window, delta, events, keys)
+        debugger.update(window, delta, events, keys, fpsclock)
         
         #Quit game if pygame called a quit event
         for event in events:

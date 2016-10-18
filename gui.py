@@ -150,7 +150,7 @@ class Button(object):
         self.rect.width = width
         self.rect.height = height
     
-    def check(self, mousepos):
+    def update(self, mousepos):
         self.selected = self.rect.collidepoint(mousepos)
         return self.selected
 
@@ -199,12 +199,6 @@ class TextButton(Button):
         super().setDimension(dimension)
         self.label.setDimension(self.rect.center)
     
-    def update(self, mousepos, surface):
-        self.check(mousepos)
-        self.render(surface)
-        
-        return self.selected
-    
     def render(self, surface):
         if self.selected:
             pygame.draw.rect(surface, self.highlightcolor, self.rect)
@@ -249,12 +243,6 @@ class ImageButton(Button):
         super().setDimension(self, dimension)
         self.image = utility.aspect(self.image, self.rect.size)
     
-    def update(self, mousepos, surface):
-        self.check(mousepos)
-        self.render(surface)
-        
-        return self.selected
-    
     def render(self, surface):
         surface.blit(self.image, self.rect.topleft)
         
@@ -289,29 +277,33 @@ class TextMenu(object):
                                        buttondim[0], buttondim[1])))
     
     def setDimensions(self, buttondim, parentdim, spacing, offset):
-        for position, button in enumerate(self.buttons):
-            self.getButton(button.getText()).setLocation(
-                                       (parentdim[0] / 2) - (buttondim[0] / 2),
-                                       (parentdim[1] / 2) + ((buttondim[1] + spacing) * position) + offset)
+        for position in range(len(self.buttons)):
+            self.getButton(position).setLocation(
+                                    (parentdim[0] / 2) - (buttondim[0] / 2),
+                                    (parentdim[1] / 2) + ((buttondim[1] + spacing) * position) + offset)
     
     def scroll(self, amount):
         for button in self.buttons:
             button.move(0, amount)
     
-    def getButton(self, name):
-        for button in self.buttons:
-            if button.getText().startswith(name):
-                return button
-        return None
+    def getButton(self, pos):
+        return self.buttons[pos]
     
-    def update(self, mousepos, surface):
+    def getSize(self):
+        return len(self.buttons)
+    
+    def update(self, mousepos):
         result = None
         
-        for button in self.buttons:
-            if button.update(mousepos, surface):
-                result = button.getText()
+        for position, button in enumerate(self.buttons):
+            if button.update(mousepos):
+                result = position
         
         return result
+    
+    def render(self, surface):
+        for button in self.buttons:
+            button.render(surface)
 
 class ImageMenu(object):
     def __init__(self, parentrect, buttondim, columns, images):
@@ -350,11 +342,15 @@ class ImageMenu(object):
         for button in self.buttons:
             button.move(0, amount)
     
-    def update(self, mousepos, surface):
+    def update(self, mousepos):
         result = None
         
         for position, button in enumerate(self.buttons):
-            if button.update(mousepos, surface):
+            if button.update(mousepos):
                 result = position
         
         return result
+    
+    def render(self, surface):
+        for button in self.buttons:
+            button.render(surface)

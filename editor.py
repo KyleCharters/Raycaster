@@ -164,17 +164,60 @@ class PackSelector(object):
                 self.enemiesmenu.scroll(amount)
                 self.enemiestext.setLocation((self.staticstext.location[0], self.staticstext.location[1] + amount))
     
-    def update(self, mousepos, surface):
+    def update(self, mousepos):
         '''
         Description:
-            Updates all menus, draws outline over selected object
+            Updates all menus
         
         Parameters:
             mousepos: The mouse position inside the window
-            surface: The surface to render to
         
         Returns:
             The selected variation and tile (Variation, Tile)
+               
+        Notes:
+            None
+        '''
+        
+        #Find mouse position in relation to the top left of viewport
+        mouseposrel = (mousepos[0] - self.rect.left, mousepos[1] - self.rect.top)
+        
+        #Update each menu if it is loaded
+        wallselected = None
+        if self._wallsloaded:
+            wallselected = self.wallsmenu.update(mouseposrel)
+        
+        staticselected = None
+        if self._staticsloaded:
+            staticselected = self.staticsmenu.update(mouseposrel)
+        
+        itemselected = None
+        if self._itemsloaded:
+            itemselected = self.itemsmenu.update(mouseposrel)
+        
+        enemyselected = None
+        if self._enemiesloaded:
+            enemyselected = self.enemiesmenu.update(mouseposrel)
+        
+        if wallselected is not None:
+            return (0, wallselected + 1)
+        elif staticselected is not None:
+            return (1, staticselected + 1)
+        elif itemselected is not None:
+            return (2, itemselected + 1)
+        elif enemyselected is not None:
+            return (3, enemyselected + 1)
+        else:
+            return None
+    
+    
+    def render(self, surface):
+        '''
+        Description:
+            Draws all menus
+        
+        Parameters:
+            surface: The surface to render to
                
         Notes:
             None
@@ -212,45 +255,25 @@ class PackSelector(object):
                 
                 pygame.draw.rect(image, color, button.rect.inflate(4, 4))
         
-        
-        
-        #Find mouse position in relation to the top left of viewport
-        mouseposrel = (mousepos[0] - self.rect.left, mousepos[1] - self.rect.top)
-        
         #Update each menu if it is loaded
-        wallselected = None
         if self._wallsloaded:
             self.wallstext.render(image)
-            wallselected = self.wallsmenu.update(mouseposrel, image)
+            self.wallsmenu.render(image)
         
-        staticselected = None
         if self._staticsloaded:
             self.staticstext.render(image)
-            staticselected = self.staticsmenu.update(mouseposrel, image)
+            self.staticsmenu.render(image)
         
-        itemselected = None
         if self._itemsloaded:
             self.itemstext.render(image)
-            itemselected = self.itemsmenu.update(mouseposrel, image)
+            self.itemsmenu.render(image)
         
-        enemyselected = None
         if self._enemiesloaded:
             self.enemiestext.render(image)
-            enemyselected = self.enemiesmenu.update(mouseposrel, image)
+            self.enemiesmenu.render(image)
         
         #Render the view to the screen
         surface.blit(image, self.rect.topleft)
-        
-        if wallselected is not None:
-            return (0, wallselected + 1)
-        elif staticselected is not None:
-            return (1, staticselected + 1)
-        elif itemselected is not None:
-            return (2, itemselected + 1)
-        elif enemyselected is not None:
-            return (3, enemyselected + 1)
-        else:
-            return None
 
 class ToolSelector(object):
     def __init__(self, rect, font, mapeditor):
@@ -286,22 +309,54 @@ class ToolSelector(object):
         self.spritemenu = gui.ImageButton("core/ui/spritemenu.png", (self.rect.right - 120, self.rect.bottom - 30, 25, 25))
         self.spritetext = gui.AlignedLabel(font, "SPRITES", True, (0, 0, 0), 2, (self.rect.right - 125, self.rect.top + 17))
         
-    def update(self, mousepos, surface):
+    def update(self, mousepos):
         '''
         Description:
             Draws buttons and text onto the screen
         
         Parameters:
             mousepos: The mouse position inside the window
+        
+        Returns:
+            The tool value
+        
+        Notes:
+            None
+        '''
+        
+        #Update all buttons
+        
+        selected = None
+        
+        if self.wallpencil.update(mousepos):
+            selected = 0
+        elif self.walleraser.update(mousepos):
+            selected = 1
+        elif self.spritepencil.update(mousepos):
+            selected = 2
+        elif self.spriteeraser.update(mousepos):
+            selected = 3
+        elif self.spritemover.update(mousepos):
+            selected = 4
+        elif self.spritemenu.update(mousepos):
+            selected = 5
+        
+        return selected
+    
+    def render(self, surface):
+        '''
+        Description:
+            Draws buttons and text onto the screen
+        
+        Parameters:
             surface: The surface to render to
         
         Returns:
             The tool value
         
         Notes:
-            The camera has a 2d position, and a zoom scalar
+            None
         '''
-        
         pygame.draw.rect(surface, (156, 39, 176), self.rect)
         self.walltext.render(surface)
         self.spritetext.render(surface)
@@ -331,25 +386,13 @@ class ToolSelector(object):
         if rect is not None:
             pygame.draw.rect(surface, color, rect.inflate(4, 4))
         
+        self.wallpencil.render(surface)
+        self.walleraser.render(surface)
+        self.spritepencil.render(surface)
+        self.spriteeraser.render(surface)
+        self.spritemover.render(surface)
+        self.spritemenu.render(surface)
         
-        #Update all buttons
-        
-        selected = None
-        
-        if self.wallpencil.update(mousepos, surface):
-            selected = 0
-        if self.walleraser.update(mousepos, surface):
-            selected = 1
-        if self.spritepencil.update(mousepos, surface):
-            selected = 2
-        if self.spriteeraser.update(mousepos, surface):
-            selected = 3
-        if self.spritemover.update(mousepos, surface):
-            selected = 4
-        if self.spritemenu.update(mousepos, surface):
-            selected = 5
-        
-        return selected
 
 class MapEditor(object):
     def __init__(self, rect, level):
@@ -564,16 +607,14 @@ class MapEditor(object):
         elif self.selected is not None:
             self.selected = None
     
-    def update(self, mousepos, mousepress, surface):
+    def update(self, mousepos, mousepress):
         '''
         Description:
-            Draws grid, tiles, sprites and player inside map editor viewport
             Also updates input
         
         Parameters:
             mousepos: The mouse position inside the window
             mousepress: A tuple of 3 that contains mouse button states
-            surface: The surface to render to
         
         Notes:
             None
@@ -591,7 +632,18 @@ class MapEditor(object):
         #Left click painting
         if selected:
             self.act(mousepos, mousepress[0])
+    
+    def render(self, surface):
+        '''
+        Description:
+            Draws grid, tiles, sprites and player inside map editor viewport
         
+        Parameters:
+            surface: The surface to render to
+        
+        Notes:
+            None
+        '''
         image = pygame.Surface(self.rect.size)
         image.fill(self.level.floorcolor)
         
@@ -646,3 +698,4 @@ class MapEditor(object):
         
         #Render view on surface
         surface.blit(image, self.rect.topleft)
+        

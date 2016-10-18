@@ -1,5 +1,5 @@
 from constants import F_TITLE, F_BIG, F_REGULAR, M_BUTTONDIMENSIONS, M_BUTTONSPACING, M_OFFSET, L_ESCAPE, G_FOV, P_ROTATIONSPEED
-from pygame.locals import MOUSEBUTTONDOWN, K_TAB, K_LSHIFT, K_w, K_a, K_s, K_d, K_o, K_p, K_SPACE
+from pygame.locals import MOUSEMOTION, MOUSEBUTTONDOWN, K_TAB, K_LSHIFT, K_w, K_a, K_s, K_d, K_o, K_p, K_SPACE
 import pygame
 import graphic
 import gui
@@ -58,16 +58,14 @@ class StateManager(object):
         self.lastState, self.currentState = self.currentState, self.lastState
         self.getCurrentState().enable()
     
-    def update(self, surface, delta, events, keys, mousepos):
-        self.getCurrentState().update(surface, delta, events, keys, mousepos)
+    def update(self, surface, delta, events, keys):
+        self.getCurrentState().update(surface, delta, events, keys)
 
 class Main(object):
     name = "Main"
     
     def __init__(self):
         self.level = world.Level("core/Menu.level")
-        
-        self.help = gui.ImageButton("core/ui/help.png", (5, 5, 30, 30))
         
         self.title = gui.AlignedLabel(F_TITLE, "Raycaster", True, (238, 238, 238), 1, (setting.resolution()[0] / 2, setting.resolution()[1] / 4), M_OFFSET)
         self.menu = gui.TextMenu(setting.resolution(), F_REGULAR, M_BUTTONDIMENSIONS, M_BUTTONSPACING, M_OFFSET,[
@@ -76,6 +74,7 @@ class Main(object):
                             ("SETTINGS", (76, 175, 80), (102, 187, 106)),
                             ("QUIT", (244, 67, 54), (239, 83, 80))
                             ])
+        self.selected = ""
     
     def enable(self):
         #Check dimensions
@@ -85,29 +84,32 @@ class Main(object):
     def disable(self, newstate=None):
         None
     
-    def update(self, surface, delta, events, keys, mousepos):
+    def update(self, surface, delta, events, keys):
         #Slowly rotate and render the the menu level
         self.level.player.rotate(5 * delta)
-        graphic.render3D(surface, self.level, G_FOV, setting.renderquality())
         
-        self.title.render(surface)
-        selected = self.menu.update(mousepos, surface)
         for event in events:
             if event.type == MOUSEBUTTONDOWN and event.button == 1:
-                if selected == "START GAME":
+                if self.selected == 0:
                     self.manager.setState("Selector")
                 
-                elif selected == "EDITOR":
+                elif self.selected == 1:
                     self.manager.setState("Editor")
                 
-                elif selected == "SETTINGS":
+                elif self.selected == 2:
                     self.manager.setState("Settings")
                 
-                elif selected == "QUIT":
+                elif self.selected == 3:
                     utility.exitPygame(pygame)
-                
-                elif self.help.selected:
-                    self.manager.setState("Help")
+            
+            elif event.type == MOUSEMOTION:
+                self.selected = self.menu.update(event.pos)
+        
+        
+        
+        graphic.render3D(surface, self.level, G_FOV, setting.renderquality())
+        self.title.render(surface)
+        self.menu.render(surface)
 
 class Settings(object):
     name = "Settings"
@@ -119,6 +121,7 @@ class Settings(object):
                             ("RENDER QUALITY: " + str(setting.renderquality()), (76, 175, 80), (102, 187, 106)),
                             ("BACK", (244, 67, 54), (239, 83, 80))
                             ])
+        self.selected = ""
     
     def enable(self):
         self.level = self.manager.getState("Main").level
@@ -126,15 +129,12 @@ class Settings(object):
     def disable(self, newstate=None):
         None
     
-    def update(self, surface, delta, events, keys, mousepos):
+    def update(self, surface, delta, events, keys):
         self.level.player.rotate(5 * delta)
-        graphic.render3D(surface, self.level, G_FOV, setting.renderquality())
         
-        self.title.render(surface)
-        selected = self.menu.update(mousepos, surface)
         for event in events:
-            if event.type == MOUSEBUTTONDOWN and event.button == 1 and selected is not None:
-                if selected.startswith("RESOLUTION"):
+            if event.type == MOUSEBUTTONDOWN and event.button == 1 and self.selected is not None:
+                if self.selected == 0:
                     setting.changeResolution()
                     
                     pygame.display.set_mode(setting.resolution())
@@ -142,15 +142,21 @@ class Settings(object):
                     self.title.setLocation((setting.resolution()[0] / 2, setting.resolution()[1] / 4))
                     self.menu.setDimensions(M_BUTTONDIMENSIONS, setting.resolution(), M_BUTTONSPACING, M_OFFSET)
                     
-                    self.menu.getButton("RESOLUTION").setText("RESOLUTION: " + str(setting.resolution()))
+                    self.menu.getButton(0).setText("RESOLUTION: " + str(setting.resolution()))
                 
-                elif selected.startswith("RENDER QUALITY"):
+                elif self.selected == 1:
                     setting.changeRenderquality()
                     
-                    self.menu.getButton("RENDER QUALITY").setText("RENDER QUALITY: " + str(setting.renderquality()))
+                    self.menu.getButton(1).setText("RENDER QUALITY: " + str(setting.renderquality()))
                 
-                elif selected == "BACK":
+                elif self.selected == 2:
                     self.manager.swapState()
+            elif event.type == MOUSEMOTION:
+                self.selected = self.menu.update(event.pos)
+        
+        graphic.render3D(surface, self.level, G_FOV, setting.renderquality())
+        self.title.render(surface)
+        self.menu.render(surface)
 
 class Selector(object):
     name = "Selector"
@@ -172,7 +178,8 @@ class Selector(object):
         buttons += [("BACK", (244, 67, 54), (239, 83, 80))]
         
         self.menu = gui.TextMenu(setting.resolution(), F_REGULAR, M_BUTTONDIMENSIONS, M_BUTTONSPACING, M_OFFSET, buttons)
-        self.selected = None
+        self.levelSelected = None
+        self.selected = ""
     
     def enable(self):
         self.title.setLocation((setting.resolution()[0] / 2, setting.resolution()[1] / 4))
@@ -182,12 +189,12 @@ class Selector(object):
         #When this state is disabled, if the new state is play then load the current world
         if newstate.name == "Play":
             for dictionary in self.dictionaries:
-                if dictionary[0] == self.selected:
+                if dictionary[0] == self.levelSelected:
                     newstate.level = world.Level(dictionary[1])
                     break
                 
     
-    def update(self, surface, delta, events, keys, mousepos):
+    def update(self, surface, delta, events, keys):
         #Pausese if escape is clicked
         L_ESCAPE.update(keys)
         if L_ESCAPE.isClicked():
@@ -196,15 +203,18 @@ class Selector(object):
         
         surface.fill((13, 13, 13))
         
-        self.title.render(surface)
-        selected = self.menu.update(mousepos, surface)
         for event in events:
-            if event.type == MOUSEBUTTONDOWN and event.button == 1 and selected is not None:
-                if selected == "BACK":
+            if event.type == MOUSEBUTTONDOWN and event.button == 1 and self.selected is not None:
+                if self.selected == self.menu.getSize() - 1:
                     self.manager.swapState()
                 else:
-                    self.selected = selected
+                    self.levelSelected = self.menu.getButton(self.selected).getText()
                     self.manager.setState("Play")
+            elif event.type == MOUSEMOTION:
+                self.selected = self.menu.update(event.pos)
+        
+        self.title.render(surface)
+        self.menu.render(surface)
 
 class Play(object):
     name = "Play"
@@ -233,7 +243,9 @@ class Play(object):
             graphic.render3D(snapshot, self.level, G_FOV, setting.renderquality())
             newstate.screen = snapshot
     
-    def update(self, surface, delta, events, keys, mousepos):
+    def update(self, surface, delta, events, keys):
+        mousepos = pygame.mouse.get_pos()
+        
         #Pausese if escape is clicked
         L_ESCAPE.update(keys)
         if L_ESCAPE.isClicked():
@@ -299,36 +311,39 @@ class Pause(object):
                             ("SETTINGS", (76, 175, 80), (102, 187, 106)),
                             ("MAIN MENU", (244, 67, 54), (239, 83, 80))
                             ])
+        
+        self.selected = ""
     
     def enable(self):
         self.title.setLocation((setting.resolution()[0] / 2, setting.resolution()[1] / 4))
         self.menu.setDimensions(M_BUTTONDIMENSIONS, setting.resolution(), M_BUTTONSPACING, M_OFFSET)
     
     def disable(self, newstate=None):
-        None
+        pass
     
-    def update(self, surface, delta, events, keys, mousepos):
+    def update(self, surface, delta, events, keys):
         #Gets current key presses
         L_ESCAPE.update(keys)
         if L_ESCAPE.isClicked():
             self.manager.setState("Play")
             return
         
-        surface.blit(pygame.transform.scale(self.screen, surface.get_rect().size), (0, 0))
-        
-        self.title.render(surface)
-        selected = self.menu.update(mousepos, surface)
-        
         for event in events:
             if event.type == MOUSEBUTTONDOWN and event.button == 1:
-                if selected == "RETURN":
+                if self.selected == 0:
                     self.manager.setState("Play")
                 
-                elif selected == "SETTINGS":
+                elif self.selected == 1:
                     self.manager.setState("Settings")
                 
-                elif selected == "MAIN MENU":
+                elif self.selected == 2:
                     self.manager.setState("Main")
+            elif event.type == MOUSEMOTION:
+                self.selected = self.menu.update(event.pos)
+        
+        surface.blit(pygame.transform.scale(self.screen, surface.get_rect().size), (0, 0))
+        self.title.render(surface)
+        self.menu.render(surface)
 
 class Editor():
     name = "Editor"
@@ -360,6 +375,8 @@ class Editor():
         self.test = gui.TextButton(F_REGULAR, "Test", (156, 39, 176), (171, 71, 188), (535, 495, 220, 30))
         
         self.toolselector = editor.ToolSelector((0, 495, 530, 35), F_REGULAR, self.mapeditor)
+        
+        self.selected = ""
     
     def enable(self):
         pygame.display.set_mode((760, 530))
@@ -367,7 +384,7 @@ class Editor():
     def disable(self, newstate=None):
         pygame.display.set_mode(setting.resolution())
     
-    def update(self, surface, delta, events, keys, mousepos):
+    def update(self, surface, delta, events, keys):
         L_ESCAPE.update(keys)
         if L_ESCAPE.isClicked():
             if self.play is not None:
@@ -379,47 +396,27 @@ class Editor():
             return
         
         if self.play is not None:
-            self.play.update(surface, delta, events, keys, mousepos)
+            self.play.update(surface, delta, events, keys)
             return
-        
-        pygame.draw.rect(surface, (33, 33, 33), self.topbar)
-        pygame.draw.rect(surface, (238, 238, 238), self.sidebar)
-        
-        self.back.update(mousepos, surface)
-        self.namelabel.render(surface)
-        self.packlabel.render(surface)
-        self.sizelabel.render(surface)
-        
-        pygame.draw.rect(surface, self.level.ceilingcolor, self.ceilingtile)
-        pygame.draw.rect(surface, self.level.floorcolor, self.floortile)
-        
-        self.load.update(mousepos, surface)
-        self.save.update(mousepos, surface)
-        self.settings.update(mousepos, surface)
-        self.test.update(mousepos, surface)
-        
-        self.mapeditor.update(mousepos, pygame.mouse.get_pressed(), surface)
-        brush = self.packselector.update(mousepos, surface)
-        tool = self.toolselector.update(mousepos, surface)
         
         for event in events:
             if event.type == MOUSEBUTTONDOWN and event.button == 1:
                 if self.back.selected:
                     self.manager.swapState()
                 
-                elif brush is not None:
-                    self.mapeditor.brush = brush
+                elif self.brush is not None:
+                    self.mapeditor.brush = self.brush
                     #Change tool if the current tool is unsuitable for selected tile
-                    if brush[0] == 0 and self.mapeditor.tool != 0:
+                    if self.brush[0] == 0 and self.mapeditor.tool != 0:
                         self.mapeditor.tool = 0
-                    elif brush[0] != 0 and self.mapeditor.tool != 2:
+                    elif self.brush[0] != 0 and self.mapeditor.tool != 2:
                         self.mapeditor.tool = 2
                 
-                elif tool is not None:
-                    self.mapeditor.tool = tool
-                    if tool <= 1 and self.mapeditor.brush[0] != 0:
+                elif self.tool is not None:
+                    self.mapeditor.tool = self.tool
+                    if self.tool <= 1 and self.mapeditor.brush[0] != 0:
                         self.mapeditor.brush = (0, 1)
-                    elif tool >= 2 and self.mapeditor.brush[0] == 0:
+                    elif self.tool >= 2 and self.mapeditor.brush[0] == 0:
                         self.mapeditor.brush = (1, 1)
                 
                 elif self.load.selected:
@@ -513,15 +510,45 @@ class Editor():
                     self.play.enable()
                 
             elif event.type == MOUSEBUTTONDOWN:
-                if self.mapeditor.rect.collidepoint(mousepos):
+                if self.mapeditor.rect.collidepoint(event.pos):
                     if event.button == 2:
                         self.mapeditor.tool = (self.mapeditor.tool + 1) % 6
                     elif event.button == 4:
                         self.mapeditor.zoom(0.05)
                     elif event.button == 5:
                         self.mapeditor.zoom(-0.05)
-                elif self.packselector.rect.collidepoint(mousepos):
+                elif self.packselector.rect.collidepoint(event.pos):
                     if event.button == 4:
                         self.packselector.scroll(5)
                     elif event.button == 5:
                         self.packselector.scroll(-5)
+            
+            elif event.type == MOUSEMOTION:
+                self.back.update(event.pos)
+                self.load.update(event.pos)
+                self.save.update(event.pos)
+                self.settings.update(event.pos)
+                self.test.update(event.pos)
+                self.mapeditor.update(event.pos, event.buttons)
+                self.brush = self.packselector.update(event.pos)
+                self.tool = self.toolselector.update(event.pos)
+        
+        pygame.draw.rect(surface, (33, 33, 33), self.topbar)
+        pygame.draw.rect(surface, (238, 238, 238), self.sidebar)
+        
+        self.back.render(surface)
+        self.namelabel.render(surface)
+        self.packlabel.render(surface)
+        self.sizelabel.render(surface)
+        
+        pygame.draw.rect(surface, self.level.ceilingcolor, self.ceilingtile)
+        pygame.draw.rect(surface, self.level.floorcolor, self.floortile)
+        
+        self.load.render(surface)
+        self.save.render(surface)
+        self.settings.render(surface)
+        self.test.render(surface)
+        
+        self.packselector.render(surface)
+        self.toolselector.render(surface)
+        self.mapeditor.render(surface)

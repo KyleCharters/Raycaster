@@ -102,7 +102,7 @@ class Debugger():
         self.tracking = False
         self.showfps = False
     
-    def update(self, surface, delta, events, keys, mousepos, fpsclock):
+    def update(self, surface, delta, events, keys, fpsclock):
         self.listener1.update(keys)
         if self.listener1.isClicked():
             self.showfps = not self.showfps
